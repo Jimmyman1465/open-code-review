@@ -2726,3 +2726,50 @@ func TestResolveEndpoint_EnvValuesAreTrimmed(t *testing.T) {
 		}
 	})
 }
+
+func TestResolveEndpoint_InvalidEnvURLNamesSourceAndVariable(t *testing.T) {
+	tests := []struct {
+		name       string
+		configure  func(*testing.T)
+		wantSource string
+		wantVar    string
+	}{
+		{
+			name: "OCR environment",
+			configure: func(t *testing.T) {
+				t.Setenv(envOCRLLMURL, "https://api.example.com/\rbad")
+				t.Setenv(envOCRLLMToken, "ocr-token")
+				t.Setenv(envOCRLLMModel, "test-model")
+			},
+			wantSource: "OCR environment",
+			wantVar:    envOCRLLMURL,
+		},
+		{
+			name: "Claude Code environment",
+			configure: func(t *testing.T) {
+				t.Setenv(envCCBaseURL, "https://api.example.com/\rbad")
+				t.Setenv(envCCToken, "cc-token")
+				t.Setenv(envCCModel, "test-model")
+			},
+			wantSource: "Claude Code environment",
+			wantVar:    envCCBaseURL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearAllEnv(t)
+			tt.configure(t)
+
+			_, err := ResolveEndpoint(filepath.Join(t.TempDir(), "nonexistent.json"))
+			if err == nil {
+				t.Fatal("expected invalid URL error")
+			}
+			for _, want := range []string{tt.wantSource, tt.wantVar, "invalid control character in URL"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error %q does not contain %q", err, want)
+				}
+			}
+		})
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -247,6 +248,15 @@ func errBedrockNotConfigurable(key string) error {
 		key, ProtocolAnthropicBedrock)
 }
 
+// validateEndpointURL reports URL parse failures before the SDK can turn them
+// into request errors that no longer identify the configuration variable.
+func validateEndpointURL(variable, value string) error {
+	if _, err := neturl.Parse(value); err != nil {
+		return fmt.Errorf("invalid %s: %w", variable, err)
+	}
+	return nil
+}
+
 // tryOCREnv reads OCR-specific environment variables.
 //
 // The values are trimmed because an environment can carry a trailing "\r" —
@@ -264,6 +274,9 @@ func tryOCREnv(modelOverride string) (ResolvedEndpoint, bool, error) {
 	}
 	if url == "" || token == "" || model == "" {
 		return ResolvedEndpoint{}, false, nil
+	}
+	if err := validateEndpointURL(envOCRLLMURL, url); err != nil {
+		return ResolvedEndpoint{}, false, err
 	}
 
 	// OCR_LLM_PROTOCOL (normalized) wins over OCR_USE_ANTHROPIC when set.
@@ -723,6 +736,9 @@ func tryCCEnv(modelOverride string) (ResolvedEndpoint, bool, error) {
 	}
 	if baseURL == "" || token == "" || model == "" {
 		return ResolvedEndpoint{}, false, nil
+	}
+	if err := validateEndpointURL(envCCBaseURL, baseURL); err != nil {
+		return ResolvedEndpoint{}, false, err
 	}
 
 	url := ensureMessagesSuffix(baseURL)
